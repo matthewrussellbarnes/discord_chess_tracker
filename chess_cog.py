@@ -103,9 +103,21 @@ class ChessCog(commands.Cog):
         await ctx.send("Game stopped and saved to history!")
         self.bot.save_games()
 
+    @commands.command(name='current')
+    async def show_current(self, ctx):
+        """Show the current game status"""
+        game = self.bot.get_current_game(ctx.channel.id)
+        if not game:
+            await ctx.send("No active game in this channel!")
+            return
+        
+        status = game.get_current_status()
+        await ctx.send("\n".join(status))
+        await self.send_board(ctx)
+
     @commands.command()
     async def move(self, ctx, move_str: str):
-        """Make a move using algebraic notation (e.g., /move e4) or UCI notation (e.g., /move e2e4)"""
+        """Make a move using algebraic notation (e.g., /move e4)"""
         game = self.bot.get_current_game(ctx.channel.id)
         if not game:
             await ctx.send("No active game in this channel!")
@@ -123,6 +135,8 @@ class ChessCog(commands.Cog):
             elif game.board.is_stalemate():
                 await ctx.send("Stalemate! The game is a draw! 🤝")
                 await self.stop(ctx)
+            else:
+                await ctx.send(game.get_next_turn_text())
             
             self.bot.save_games()
         else:

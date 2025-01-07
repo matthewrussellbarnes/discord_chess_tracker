@@ -74,3 +74,29 @@ class ChessGame:
         cairosvg.svg2png(bytestring=svg_data.encode('utf-8'), write_to=png_data)
         png_data.seek(0)
         return png_data
+
+    def get_current_status(self):
+        """Get the current game status as a formatted string"""
+        # Get player names
+        white = self.white_player.name if self.white_player else "Vacant"
+        black = self.black_player.name if self.black_player else "Vacant"
+        
+        # Determine whose turn it is
+        current_turn = "White" if self.board.turn == chess.WHITE else "Black"
+        current_player = self.white_player if self.board.turn == chess.WHITE else self.black_player
+        player_name = current_player.name if current_player else "No player"
+        
+        return [
+            f"⚪ White: {white}",
+            f"⚫ Black: {black}",
+            f"\nTurn {len(self.move_history) // 2 + 1}",
+            f"It's {current_turn}'s turn ({player_name})"
+        ]
+    
+    def get_next_turn_text(self):
+        """Get text indicating whose turn is next"""
+        next_turn = "White" if self.board.turn == chess.WHITE else "Black"
+        next_player = self.white_player if self.board.turn == chess.WHITE else self.black_player
+        if next_player:
+            return f"It's {next_turn}'s turn ({next_player.name})"
+        return f"It's {next_turn}'s turn (no player assigned)"
