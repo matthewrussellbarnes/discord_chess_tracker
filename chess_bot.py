@@ -2,8 +2,7 @@ import discord
 from discord.ext import commands
 import chess
 import chess.svg
-from svglib.svglib import svg2rlg
-from reportlab.graphics import renderPM
+import cairosvg
 import io
 import os
 from dotenv import load_dotenv
@@ -33,13 +32,10 @@ class ChessGame:
         return None
         
     def get_board_image(self):
-        # Generate SVG
         svg_data = chess.svg.board(self.board)
         
-        # Convert SVG to PNG using svglib
-        drawing = svg2rlg(io.StringIO(svg_data))
         png_data = io.BytesIO()
-        renderPM.drawToFile(drawing, png_data, fmt="PNG")
+        cairosvg.svg2png(bytestring=svg_data.encode('utf-8'), write_to=png_data)
         png_data.seek(0)
         return png_data
 
@@ -155,10 +151,8 @@ class ChessCog(commands.Cog):
             board_image = game.get_board_image()
             await ctx.send(file=discord.File(board_image, 'board.png'))
 
-def main():
-    bot = ChessBot()
-    bot.run(os.getenv('DISCORD_TOKEN'))
 
 if __name__ == "__main__":
     load_dotenv()
-    main() 
+    bot = ChessBot()
+    bot.run(os.getenv('DISCORD_TOKEN'))

@@ -1,5 +1,4 @@
 discord.py
 python-chess
-svglib 
+cairosvg
 python-dotenv
-reportlab
