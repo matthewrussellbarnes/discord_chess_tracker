@@ -16,13 +16,22 @@ class ChessGame:
         
     def make_move(self, move_str):
         try:
-            move = chess.Move.from_uci(move_str)
-            if move in self.board.legal_moves:
-                self.board.push(move)
-                self.move_history.append(move_str)
-                return True
-            return False
-        except:
+            # Try parsing as algebraic notation first
+            move = self.board.parse_san(move_str)
+            self.board.push(move)
+            # Store UCI notation in history for consistency
+            self.move_history.append(self.board.uci(move))
+            return True
+        except ValueError:
+            try:
+                # Fallback to UCI notation if algebraic fails
+                move = chess.Move.from_uci(move_str)
+                if move in self.board.legal_moves:
+                    self.board.push(move)
+                    self.move_history.append(move_str)
+                    return True
+            except:
+                pass
             return False
             
     def undo_move(self):
@@ -70,7 +79,7 @@ class ChessCog(commands.Cog):
 
     @commands.command()
     async def move(self, ctx, move_str: str):
-        """Make a move using UCI notation (e.g., /move e2e4)"""
+        """Make a move using algebraic notation (e.g., /move e4) or UCI notation (e.g., /move e2e4)"""
         game = self.bot.games.get(ctx.channel.id)
         if not game:
             await ctx.send("No active game in this channel!")
