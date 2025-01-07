@@ -62,6 +62,47 @@ class ChessBot(commands.Bot):
 class ChessCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.generic_advice = [
+            "Have you considered moving the pieces to where they would be more useful?",
+            "The key to winning is to not lose.",
+            "Try to keep your king alive - it's quite important.",
+            "Pieces generally work better when they're not captured.",
+            "A knight on d4 is worth two in the starting position.",
+            "The best move is usually the one that helps you win.",
+            "Remember: pawns can only move backwards in your heart.",
+            "If you're losing, try winning instead.",
+            "The queen is like a bishop and a rook combined, except when it isn't.",
+            "Castle early, castle often (note: you can only castle once).",
+            "The best defense is a good offense, unless it's a bad offense.",
+            "Try to predict your opponent's moves, or just guess randomly.",
+            "Scholars say e4 is best by test, but scholars lose games too.",
+            "When in doubt, push pawns randomly.",
+            "If your opponent makes a good move, pretend you saw it coming."
+        ]
+        
+        self.piece_types = {
+            "pawn": "Consider pushing a pawn to",
+            "knight": "Perhaps your knight would enjoy",
+            "bishop": "Your bishop seems interested in",
+            "rook": "A rook might like",
+            "queen": "Your queen could consider",
+            "king": "Your king feels drawn to"
+        }
+        
+        self.directions = [
+            "the center of the board",
+            "the kingside",
+            "the queenside",
+            "a more aggressive position",
+            "a safer square",
+            "literally anywhere else",
+            "that one square over there",
+            "wherever your opponent least expects",
+            "the back rank, for dramatic effect",
+            "the same place it's already in, but with more confidence",
+            "a square of the opposite color",
+            "wherever it would look most aesthetically pleasing"
+        ]
 
     @commands.command()
     async def start(self, ctx, fen=None):
@@ -168,6 +209,19 @@ class ChessCog(commands.Cog):
         if game:
             board_image = game.get_board_image()
             await ctx.send(file=discord.File(board_image, 'board.png'))
+
+    @commands.command()
+    async def advice(self, ctx):
+        """Get some questionably useful chess advice"""
+        import random
+        
+        if random.random() < 0.3:
+            advice = random.choice(self.generic_advice)
+        else:
+            piece = random.choice(list(self.piece_types.keys()))
+            direction = random.choice(self.directions)
+            advice = f"{self.piece_types[piece]} {direction}."
+        await ctx.send(f"🧙‍♂️ Chess Wisdom: {advice}")
 
 
 if __name__ == "__main__":
