@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 import chess
 import datetime
-
+import chess.svg
 from chess_game import ChessGame
 
 class ChessCog(commands.Cog):

@@ -59,6 +59,9 @@ class ChessBot(commands.Bot):
     def get_current_game(self, channel_id):
         """Helper to get current game for a channel"""
         return self.channel_data.get(channel_id, {}).get('current_game')
+    
+    async def setup_hook(self):
+        await self.add_cog(ChessCog(self))
 
 
 if __name__ == "__main__":

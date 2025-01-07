@@ -1,4 +1,5 @@
 import chess
+import chess.svg
 import io
 import cairosvg
 
