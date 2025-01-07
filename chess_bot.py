@@ -12,23 +12,24 @@ class ChessGame:
         self.board = chess.Board()
         self.white_player = None
         self.black_player = None
-        self.move_history = []
+        self.move_history = []  # Now stores only algebraic notation
         
     def make_move(self, move_str):
         try:
             # Try parsing as algebraic notation first
             move = self.board.parse_san(move_str)
             self.board.push(move)
-            # Store UCI notation in history for consistency
-            self.move_history.append(self.board.uci(move))
+            self.move_history.append(move_str)
             return True
         except ValueError:
             try:
                 # Fallback to UCI notation if algebraic fails
                 move = chess.Move.from_uci(move_str)
                 if move in self.board.legal_moves:
+                    # Get the SAN before pushing the move
+                    san = self.board.san(move)
                     self.board.push(move)
-                    self.move_history.append(move_str)
+                    self.move_history.append(san)  # Store as algebraic notation
                     return True
             except:
                 pass
@@ -108,7 +109,7 @@ class ChessCog(commands.Cog):
 
     @commands.command()
     async def history(self, ctx):
-        """Show the move history"""
+        """Show the move history in algebraic notation"""
         game = self.bot.games.get(ctx.channel.id)
         if not game:
             await ctx.send("No active game in this channel!")
@@ -118,7 +119,15 @@ class ChessCog(commands.Cog):
             await ctx.send("No moves played yet!")
             return
             
-        moves = " ".join(game.move_history)
+        # Format moves with numbers
+        formatted_moves = []
+        for i, move in enumerate(game.move_history):
+            if i % 2 == 0:
+                formatted_moves.append(f"{i//2 + 1}. {move}")
+            else:
+                formatted_moves.append(move)
+                
+        moves = " ".join(formatted_moves)
         await ctx.send(f"Move history: {moves}")
 
     @commands.command()
