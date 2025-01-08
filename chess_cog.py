@@ -51,8 +51,8 @@ class ChessCog(commands.Cog):
         ]
 
     @commands.command()
-    async def start(self, ctx, fen=None):
-        """Start a new chess game, optionally with a FEN position"""
+    async def start(self, ctx, variant: str = None, fen: str = None):
+        """Start a new chess game. Use '960' for Chess960 variant, or provide a FEN position"""
         channel_id = ctx.channel.id
         
         # Check if there's already an active game
@@ -60,10 +60,15 @@ class ChessCog(commands.Cog):
             await ctx.send("There's already an active game! Use `/stop` to end it first.")
             return
         
+        # Handle Chess960 variant
+        is_960 = variant == '960'
+        
         # Create new game with no players assigned
-        game = ChessGame()
+        game = ChessGame(variant_960=is_960)
         game.timestamp = datetime.datetime.now().isoformat()
-        if fen:
+        
+        # Handle custom FEN if provided (and not Chess960)
+        if fen and not is_960:
             try:
                 game.board.set_fen(fen)
             except:
@@ -77,7 +82,10 @@ class ChessCog(commands.Cog):
             }
         
         self.bot.channel_data[channel_id]['current_game'] = game
-        await ctx.send("New chess game started! Use `/join white` or `/join black` to play!")
+        
+        # Customize message based on variant
+        variant_msg = "chess960" if is_960 else "chess"
+        await ctx.send(f"New {variant_msg} game started! Use `/join white` or `/join black` to play!")
         await self.send_board(ctx)
         self.bot.save_games()
 

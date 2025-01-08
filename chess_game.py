@@ -2,15 +2,21 @@ import chess
 import chess.svg
 import io
 import cairosvg
+import random
 
 class ChessGame:
-    def __init__(self):
-        self.board = chess.Board()
+    def __init__(self, variant_960=False):
+        if variant_960:
+            # Generate random Chess960 starting position
+            self.board = chess.Board.from_chess960_pos(random.randint(0, 959))
+        else:
+            self.board = chess.Board()
         self.white_players = []  # List of players on white team
         self.black_players = []  # List of players on black team
         self.move_history = []
         self.completed = False
         self.timestamp = None
+        self.is_960 = variant_960  # Store if this is a Chess960 game
 
     def to_dict(self):
         """Convert game state to dictionary for saving"""
