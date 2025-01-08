@@ -51,14 +51,16 @@ class ChessCog(commands.Cog):
             "wherever it would look most aesthetically pleasing"
         ]
 
-    @commands.command()
-    async def start(self, ctx, variant: str = None, fen: str = None):
-        """Start a new chess game. Use '960' for Chess960 variant, or provide a FEN position"""
-        channel_id = ctx.channel.id
+    @app_commands.command(name="start", description="Start a new chess game")
+    @app_commands.describe(
+        variant="Use '960' for Chess960 variant",
+        fen="Provide a custom FEN position"
+    )
+    async def start(self, interaction: discord.Interaction, variant: str = None, fen: str = None):
+        channel_id = interaction.channel_id
         
-        # Check if there's already an active game
         if channel_id in self.bot.channel_data and self.bot.channel_data[channel_id].get('current_game'):
-            await ctx.send("There's already an active game! Use `/stop` to end it first.")
+            await interaction.response.send_message("There's already an active game! Use `/stop` to end it first.")
             return
         
         # Handle Chess960 variant
@@ -73,7 +75,7 @@ class ChessCog(commands.Cog):
             try:
                 game.board.set_fen(fen)
             except:
-                await ctx.send("Invalid FEN position!")
+                await interaction.response.send_message("Invalid FEN position!")
                 return
         
         if channel_id not in self.bot.channel_data:
@@ -86,17 +88,16 @@ class ChessCog(commands.Cog):
         
         # Customize message based on variant
         variant_msg = "chess960" if is_960 else "chess"
-        await ctx.send(f"New {variant_msg} game started! Use `/join white` or `/join black` to play!")
-        await self.send_board(ctx)
+        await interaction.response.send_message(f"New {variant_msg} game started! Use `/join white` or `/join black` to play!")
+        await self.send_board(interaction)
         self.bot.save_games()
 
-    @commands.command()
-    async def stop(self, ctx):
-        """Stop the current game and save it to history"""
-        channel_id = ctx.channel.id
+    @app_commands.command(name="stop", description="Stop the current game and save it to history")
+    async def stop(self, interaction: discord.Interaction):
+        channel_id = interaction.channel_id
         
         if channel_id not in self.bot.channel_data or not self.bot.channel_data[channel_id].get('current_game'):
-            await ctx.send("No active game to stop!")
+            await interaction.response.send_message("No active game to stop!")
             return
         
         # Archive the current game (keeping player assignments)
@@ -110,79 +111,77 @@ class ChessCog(commands.Cog):
         self.bot.channel_data[channel_id]['past_games'].append(current_game)
         self.bot.channel_data[channel_id]['current_game'] = None
         
-        await ctx.send("Game stopped and saved to history!")
+        await interaction.response.send_message("Game stopped and saved to history!")
         self.bot.save_games()
 
-    @commands.command(name='current')
-    async def show_current(self, ctx):
-        """Show the current game status"""
-        game = self.bot.get_current_game(ctx.channel.id)
+    @app_commands.command(name="current", description="Show the current game status")
+    async def show_current(self, interaction: discord.Interaction):
+        game = self.bot.get_current_game(interaction.channel_id)
         if not game:
-            await ctx.send("No active game in this channel!")
+            await interaction.response.send_message("No active game in this channel!")
             return
         
         status = game.get_current_status()
-        await ctx.send("\n".join(status))
-        await self.send_board(ctx)
+        await interaction.response.send_message("\n".join(status))
+        await self.send_board(interaction)
 
-    @commands.command()
-    async def move(self, ctx, move_str: str):
-        """Make a move using algebraic notation (e.g., /move e4)"""
-        game = self.bot.get_current_game(ctx.channel.id)
+    @app_commands.command(name="move", description="Make a move using algebraic notation")
+    @app_commands.describe(move_str="The move in algebraic notation (e.g., e4, Nf3)")
+    async def move(self, interaction: discord.Interaction, move_str: str):
+        game = self.bot.get_current_game(interaction.channel_id)
         if not game:
-            await ctx.send("No active game in this channel!")
+            await interaction.response.send_message("No active game in this channel!")
             return
         
         # Check if it's the right player's turn
         current_players = game.white_players if game.board.turn == chess.WHITE else game.black_players
-        if ctx.author not in current_players:
+        if interaction.user not in current_players:
             if not current_players:
                 color = "White" if game.board.turn == chess.WHITE else "Black"
-                await ctx.send(f"The {color} team is vacant! Join with `/join {color.lower()}`")
+                await interaction.response.send_message(f"The {color} team is vacant! Join with `/join {color.lower()}`")
             else:
-                await ctx.send(f"It's not your turn! Waiting for {game.get_next_turn_text()}")
+                await interaction.response.send_message(f"It's not your turn! Waiting for {game.get_next_turn_text()}")
             return
             
         if game.make_move(move_str):
-            await ctx.send(f"Move {move_str} played!")
-            await self.send_board(ctx)
+            await interaction.response.send_message(f"Move {move_str} played!")
+            await self.send_board(interaction)
             
             # Check for checkmate or stalemate
             if game.board.is_checkmate():
                 winner = "Black" if game.board.turn == chess.WHITE else "White"
-                await ctx.send(f"Checkmate! {winner} wins! 🎉")
-                await self.stop(ctx)
+                await interaction.response.send_message(f"Checkmate! {winner} wins! 🎉")
+                await self.stop(interaction)
             elif game.board.is_stalemate():
-                await ctx.send("Stalemate! The game is a draw! 🤝")
-                await self.stop(ctx)
+                await interaction.response.send_message("Stalemate! The game is a draw! 🤝")
+                await self.stop(interaction)
             else:
-                await ctx.send(game.get_next_turn_text())
+                await interaction.response.send_message(game.get_next_turn_text())
             
             self.bot.save_games()
         else:
-            await ctx.send("Invalid move!")
+            await interaction.response.send_message(f"{move_str} is not a valid move!")
 
-    @commands.command()
-    async def undo(self, ctx):
-        """Undo the last move"""
-        game = self.bot.get_current_game(ctx.channel.id)
+    @app_commands.command(name="undo", description="Undo the last move")
+    async def undo(self, interaction: discord.Interaction):
+        game = self.bot.get_current_game(interaction.channel_id)
         if not game:
-            await ctx.send("No active game in this channel!")
+            await interaction.response.send_message("No active game in this channel!")
             return
             
         move = game.undo_move()
         if move:
-            await ctx.send(f"Move {move} undone!")
-            await self.send_board(ctx)
+            await interaction.response.send_message(f"Move {move} undone!")
+            await self.send_board(interaction)
         else:
-            await ctx.send("No moves to undo!")
+            await interaction.response.send_message("No moves to undo!")
 
-    @commands.command()
-    async def history(self, ctx, game_number: int = None):
-        """Show move history. Use a number to see a past game."""
-        channel_id = ctx.channel.id
+    @app_commands.command(name="history", description="Show move history")
+    @app_commands.describe(game_number="Optional: View a specific past game")
+    async def history(self, interaction: discord.Interaction, game_number: int = None):
+        channel_id = interaction.channel_id
         if channel_id not in self.bot.channel_data:
-            await ctx.send("No games have been played in this channel!")
+            await interaction.response.send_message("No games have been played in this channel!")
             return
             
         channel_data = self.bot.channel_data[channel_id]
@@ -191,7 +190,7 @@ class ChessCog(commands.Cog):
             # Show past game
             past_games = channel_data.get('past_games', [])
             if not past_games:
-                await ctx.send("No past games found!")
+                await interaction.response.send_message("No past games found!")
                 return
                 
             try:
@@ -211,15 +210,15 @@ class ChessCog(commands.Cog):
                 else:
                     response.append("No moves were made in this game.")
                     
-                await ctx.send("\n".join(response))
+                await interaction.response.send_message("\n".join(response))
             except IndexError:
-                await ctx.send(f"Game #{game_number} not found! There are {len(past_games)} past games.")
+                await interaction.response.send_message(f"Game #{game_number} not found! There are {len(past_games)} past games.")
             return
         
         # Show current game
         current_game = channel_data.get('current_game')
         if not current_game:
-            await ctx.send("No active game. Use a number to see past games!")
+            await interaction.response.send_message("No active game. Use a number to see past games!")
             return
             
         # Format moves with numbers for current game
@@ -240,58 +239,89 @@ class ChessCog(commands.Cog):
         if channel_data.get('past_games'):
             response.append(f"\nUse `/history <number>` to see past games (1-{len(channel_data['past_games'])})")
             
-        await ctx.send("\n".join(response))
+        await interaction.response.send_message("\n".join(response))
 
-    @commands.command()
-    async def teams(self, ctx):
-        """Show current teams"""
-        game = self.bot.get_current_game(ctx.channel.id)
+    @app_commands.command(name="teams", description="Show current teams")
+    async def teams(self, interaction: discord.Interaction):
+        game = self.bot.get_current_game(interaction.channel_id)
         if not game:
-            await ctx.send("No active game in this channel!")
+            await interaction.response.send_message("No active game in this channel!")
             return
             
         white = ", ".join(p.name for p in game.white_players) if game.white_players else "Vacant"
         black = ", ".join(p.name for p in game.black_players) if game.black_players else "Vacant"
-        await ctx.send(f"White: {white}\nBlack: {black}")
+        await interaction.response.send_message(f"White: {white}\nBlack: {black}")
 
-    @commands.command()
-    async def join(self, ctx, color: str):
-        """Join as either 'white' or 'black'"""
-        game = self.bot.get_current_game(ctx.channel.id)
+    @app_commands.command(name="join", description="Join as either white or black")
+    @app_commands.describe(color="Choose 'white' or 'black'")
+    @app_commands.choices(color=[
+        app_commands.Choice(name="White", value="white"),
+        app_commands.Choice(name="Black", value="black")
+    ])
+    async def join(self, interaction: discord.Interaction, color: str):
+        game = self.bot.get_current_game(interaction.channel_id)
         if not game:
-            await ctx.send("No active game in this channel!")
+            await interaction.response.send_message("No active game in this channel!")
             return
             
         color = color.lower()
         if color not in ['white', 'black']:
-            await ctx.send("Please specify 'white' or 'black'!")
+            await interaction.response.send_message("Please specify 'white' or 'black'!")
             return
         
         # Check if player is already on either team
-        if ctx.author in game.white_players:
-            await ctx.send("You're already playing as White! Use `/leave` first to switch teams.")
+        if interaction.user in game.white_players:
+            await interaction.response.send_message("You're already playing as White! Use `/leave` first to switch teams.")
             return
-        if ctx.author in game.black_players:
-            await ctx.send("You're already playing as Black! Use `/leave` first to switch teams.")
+        if interaction.user in game.black_players:
+            await interaction.response.send_message("You're already playing as Black! Use `/leave` first to switch teams.")
             return
             
         if color == 'white':
-            game.white_players.append(ctx.author)
-            await ctx.send(f"{ctx.author.name} has joined team White!")
+            game.white_players.append(interaction.user)
+            await interaction.response.send_message(f"{interaction.user.name} has joined team White!")
         else:
-            game.black_players.append(ctx.author)
-            await ctx.send(f"{ctx.author.name} has joined team Black!")
+            game.black_players.append(interaction.user)
+            await interaction.response.send_message(f"{interaction.user.name} has joined team Black!")
         self.bot.save_games()
 
-    async def send_board(self, ctx):
-        """Helper function to send the current board state"""
-        game = self.bot.get_current_game(ctx.channel.id)
-        if game:
-            board_image = game.get_board_image()
-            await ctx.send(file=discord.File(board_image, 'board.png'))
+    @app_commands.command(name="leave", description="Leave your current team")
+    async def leave(self, interaction: discord.Interaction):
+        game = self.bot.get_current_game(interaction.channel_id)
+        if not game:
+            await interaction.response.send_message("No active game in this channel!")
+            return
+            
+        if interaction.user in game.white_players:
+            game.white_players.remove(interaction.user)
+            await interaction.response.send_message(f"{interaction.user.name} has left the white team!")
+        elif interaction.user in game.black_players:
+            game.black_players.remove(interaction.user)
+            await interaction.response.send_message(f"{interaction.user.name} has left the black team!")
+        else:
+            await interaction.response.send_message("You're not on any team!")
+        
+        self.bot.save_games()
 
-    @commands.command()
-    async def advice(self, ctx):
+    @app_commands.command(name="reset_teams", description="Reset both teams to vacant")
+    async def reset_teams(self, interaction: discord.Interaction):
+        game = self.bot.get_current_game(interaction.channel_id)
+        if not game:
+            await interaction.response.send_message("No active game in this channel!")
+            return
+            
+        game.white_players = []
+        game.black_players = []
+        await interaction.response.send_message("Teams have been reset! Both sides are now vacant.")
+        self.bot.save_games()
+
+    @app_commands.command(name="save", description="Manually save all active games")
+    async def save(self, interaction: discord.Interaction):
+        self.bot.save_games()
+        await interaction.response.send_message("Games saved!")
+
+    @app_commands.command(name="advice", description="Get some questionably useful chess advice")
+    async def advice(self, interaction: discord.Interaction):
         """Get some questionably useful chess advice"""
         import random
         
@@ -301,45 +331,15 @@ class ChessCog(commands.Cog):
             piece = random.choice(list(self.piece_types.keys()))
             direction = random.choice(self.directions)
             advice = f"{self.piece_types[piece]} {direction}."
-        await ctx.send(f"🧙‍♂️ Chess Wisdom: {advice}")
+        await interaction.response.send_message(f"🧙‍♂️ Chess Wisdom: {advice}")
 
-    @commands.command()
-    async def save(self, ctx):
-        """Manually save all active games"""
-        self.bot.save_games()
-        await ctx.send("Games saved!")
-
-    @commands.command()
-    async def leave(self, ctx):
-        """Leave your current team (white/black)"""
-        game = self.bot.get_current_game(ctx.channel.id)
-        if not game:
-            await ctx.send("No active game in this channel!")
-            return
-            
-        if ctx.author in game.white_players:
-            game.white_players.remove(ctx.author)
-            await ctx.send(f"{ctx.author.name} has left the white team!")
-        elif ctx.author in game.black_players:
-            game.black_players.remove(ctx.author)
-            await ctx.send(f"{ctx.author.name} has left the black team!")
-        else:
-            await ctx.send("You're not on any team!")
-        
-        self.bot.save_games()
-
-    @commands.command()
-    async def reset_teams(self, ctx):
-        """Reset both teams to vacant"""
-        game = self.bot.get_current_game(ctx.channel.id)
-        if not game:
-            await ctx.send("No active game in this channel!")
-            return
-            
-        game.white_players = []
-        game.black_players = []
-        await ctx.send("Teams have been reset! Both sides are now vacant.")
-        self.bot.save_games()
+    # Helper method needs to be updated to work with interactions
+    async def send_board(self, interaction):
+        """Helper function to send the current board state"""
+        game = self.bot.get_current_game(interaction.channel_id)
+        if game:
+            board_image = game.get_board_image()
+            await interaction.followup.send(file=discord.File(board_image, 'board.png'))
 
     @app_commands.command(name="help", description="Show all available chess commands")
     async def help(self, interaction: discord.Interaction):
