@@ -6,18 +6,18 @@ import cairosvg
 class ChessGame:
     def __init__(self):
         self.board = chess.Board()
-        self.white_player = None
-        self.black_player = None
+        self.white_players = []  # List of players on white team
+        self.black_players = []  # List of players on black team
         self.move_history = []
-        self.completed = False  # New flag to mark if game is finished
-        self.timestamp = None  # When the game was started/completed
-        
+        self.completed = False
+        self.timestamp = None
+
     def to_dict(self):
         """Convert game state to dictionary for saving"""
         return {
             'fen': self.board.fen(),
-            'white_player': self.white_player.id if self.white_player else None,
-            'black_player': self.black_player.id if self.black_player else None,
+            'white_players': [player.id for player in self.white_players],
+            'black_players': [player.id for player in self.black_players],
             'move_history': self.move_history,
             'completed': self.completed,
             'timestamp': self.timestamp
@@ -29,17 +29,15 @@ class ChessGame:
         game = cls()
         game.board.set_fen(data['fen'])
         game.move_history = data['move_history']
-        game.completed = data.get('completed', False)  # Default to False for backward compatibility
+        game.completed = data.get('completed', False)
         game.timestamp = data.get('timestamp')
         
         # Restore player objects from IDs
-        if data['white_player']:
-            game.white_player = bot.get_user(data['white_player'])
-        if data['black_player']:
-            game.black_player = bot.get_user(data['black_player'])
+        game.white_players = [bot.get_user(pid) for pid in data['white_players'] if bot.get_user(pid)]
+        game.black_players = [bot.get_user(pid) for pid in data['black_players'] if bot.get_user(pid)]
         
         return game
-
+        
     def make_move(self, move_str):
         try:
             # Try parsing as algebraic notation first
@@ -55,7 +53,7 @@ class ChessGame:
                     # Get the SAN before pushing the move
                     san = self.board.san(move)
                     self.board.push(move)
-                    self.move_history.append(san)  # Store as algebraic notation
+                    self.move_history.append(san)
                     return True
             except:
                 pass
@@ -68,35 +66,36 @@ class ChessGame:
         return None
         
     def get_board_image(self):
+        """Convert board to SVG then to PNG"""
         svg_data = chess.svg.board(self.board)
+        png_data = cairosvg.svg2png(bytestring=svg_data.encode('utf-8'))
+        return io.BytesIO(png_data)
         
-        png_data = io.BytesIO()
-        cairosvg.svg2png(bytestring=svg_data.encode('utf-8'), write_to=png_data)
-        png_data.seek(0)
-        return png_data
-
+    
+        
     def get_current_status(self):
         """Get the current game status as a formatted string"""
         # Get player names
-        white = self.white_player.name if self.white_player else "Vacant"
-        black = self.black_player.name if self.black_player else "Vacant"
+        white = ", ".join(p.name for p in self.white_players) if self.white_players else "Vacant"
+        black = ", ".join(p.name for p in self.black_players) if self.black_players else "Vacant"
         
         # Determine whose turn it is
         current_turn = "White" if self.board.turn == chess.WHITE else "Black"
-        current_player = self.white_player if self.board.turn == chess.WHITE else self.black_player
-        player_name = current_player.name if current_player else "No player"
+        current_players = self.white_players if self.board.turn == chess.WHITE else self.black_players
+        player_names = ", ".join(p.name for p in current_players) if current_players else "No players"
         
         return [
             f"⚪ White: {white}",
             f"⚫ Black: {black}",
             f"\nTurn {len(self.move_history) // 2 + 1}",
-            f"It's {current_turn}'s turn ({player_name})"
+            f"It's {current_turn}'s turn ({player_names})"
         ]
     
     def get_next_turn_text(self):
         """Get text indicating whose turn is next"""
         next_turn = "White" if self.board.turn == chess.WHITE else "Black"
-        next_player = self.white_player if self.board.turn == chess.WHITE else self.black_player
-        if next_player:
-            return f"It's {next_turn}'s turn ({next_player.name})"
-        return f"It's {next_turn}'s turn (no player assigned)"
+        next_players = self.white_players if self.board.turn == chess.WHITE else self.black_players
+        if next_players:
+            player_names = ", ".join(p.name for p in next_players)
+            return f"It's {next_turn}'s turn ({player_names})"
+        return f"It's {next_turn}'s turn (no players assigned)"

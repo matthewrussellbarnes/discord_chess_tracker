@@ -60,6 +60,7 @@ class ChessCog(commands.Cog):
             await ctx.send("There's already an active game! Use `/stop` to end it first.")
             return
         
+        # Create new game with no players assigned
         game = ChessGame()
         game.timestamp = datetime.datetime.now().isoformat()
         if fen:
@@ -76,7 +77,7 @@ class ChessCog(commands.Cog):
             }
         
         self.bot.channel_data[channel_id]['current_game'] = game
-        await ctx.send("New chess game started!")
+        await ctx.send("New chess game started! Use `/join white` or `/join black` to play!")
         await self.send_board(ctx)
         self.bot.save_games()
 
@@ -89,7 +90,7 @@ class ChessCog(commands.Cog):
             await ctx.send("No active game to stop!")
             return
         
-        # Archive the current game
+        # Archive the current game (keeping player assignments)
         current_game = self.bot.channel_data[channel_id]['current_game']
         current_game.completed = True
         current_game.timestamp = datetime.datetime.now().isoformat()
@@ -121,6 +122,16 @@ class ChessCog(commands.Cog):
         game = self.bot.get_current_game(ctx.channel.id)
         if not game:
             await ctx.send("No active game in this channel!")
+            return
+        
+        # Check if it's the right player's turn
+        current_players = game.white_players if game.board.turn == chess.WHITE else game.black_players
+        if ctx.author not in current_players:
+            if not current_players:
+                color = "White" if game.board.turn == chess.WHITE else "Black"
+                await ctx.send(f"The {color} team is vacant! Join with `/join {color.lower()}`")
+            else:
+                await ctx.send(f"It's not your turn! Waiting for {game.get_next_turn_text()}")
             return
             
         if game.make_move(move_str):
@@ -230,8 +241,8 @@ class ChessCog(commands.Cog):
             await ctx.send("No active game in this channel!")
             return
             
-        white = game.white_player.name if game.white_player else "Vacant"
-        black = game.black_player.name if game.black_player else "Vacant"
+        white = ", ".join(p.name for p in game.white_players) if game.white_players else "Vacant"
+        black = ", ".join(p.name for p in game.black_players) if game.black_players else "Vacant"
         await ctx.send(f"White: {white}\nBlack: {black}")
 
     @commands.command()
@@ -246,13 +257,21 @@ class ChessCog(commands.Cog):
         if color not in ['white', 'black']:
             await ctx.send("Please specify 'white' or 'black'!")
             return
+        
+        # Check if player is already on either team
+        if ctx.author in game.white_players:
+            await ctx.send("You're already playing as White! Use `/leave` first to switch teams.")
+            return
+        if ctx.author in game.black_players:
+            await ctx.send("You're already playing as Black! Use `/leave` first to switch teams.")
+            return
             
         if color == 'white':
-            game.white_player = ctx.author
-            await ctx.send(f"{ctx.author.name} is now playing as White!")
+            game.white_players.append(ctx.author)
+            await ctx.send(f"{ctx.author.name} has joined team White!")
         else:
-            game.black_player = ctx.author
-            await ctx.send(f"{ctx.author.name} is now playing as Black!")
+            game.black_players.append(ctx.author)
+            await ctx.send(f"{ctx.author.name} has joined team Black!")
         self.bot.save_games()
 
     async def send_board(self, ctx):
@@ -280,3 +299,35 @@ class ChessCog(commands.Cog):
         """Manually save all active games"""
         self.bot.save_games()
         await ctx.send("Games saved!")
+
+    @commands.command()
+    async def leave(self, ctx):
+        """Leave your current team (white/black)"""
+        game = self.bot.get_current_game(ctx.channel.id)
+        if not game:
+            await ctx.send("No active game in this channel!")
+            return
+            
+        if ctx.author in game.white_players:
+            game.white_players.remove(ctx.author)
+            await ctx.send(f"{ctx.author.name} has left the white team!")
+        elif ctx.author in game.black_players:
+            game.black_players.remove(ctx.author)
+            await ctx.send(f"{ctx.author.name} has left the black team!")
+        else:
+            await ctx.send("You're not on any team!")
+        
+        self.bot.save_games()
+
+    @commands.command()
+    async def reset_teams(self, ctx):
+        """Reset both teams to vacant"""
+        game = self.bot.get_current_game(ctx.channel.id)
+        if not game:
+            await ctx.send("No active game in this channel!")
+            return
+            
+        game.white_players = []
+        game.black_players = []
+        await ctx.send("Teams have been reset! Both sides are now vacant.")
+        self.bot.save_games()
