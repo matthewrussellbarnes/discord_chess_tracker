@@ -4,6 +4,7 @@ import chess
 import datetime
 import chess.svg
 from chess_game import ChessGame
+from discord import app_commands
 
 class ChessCog(commands.Cog):
     def __init__(self, bot):
@@ -339,3 +340,23 @@ class ChessCog(commands.Cog):
         game.black_players = []
         await ctx.send("Teams have been reset! Both sides are now vacant.")
         self.bot.save_games()
+
+    @app_commands.command(name="help", description="Show all available chess commands")
+    async def help(self, interaction: discord.Interaction):
+        commands = [
+            ("start [960] [fen]", "Start a new chess game. Use '960' for Chess960 variant, or provide a FEN position"),
+            ("stop", "Stop the current game and save it to history"),
+            ("move <move>", "Make a move using algebraic notation (e.g., e4, Nf3)"),
+            ("join <white/black>", "Join a team"),
+            ("leave", "Leave your current team"),
+            ("teams", "Show current teams"),
+            ("current", "Show the current game status"),
+            ("history [game_number]", "Show move history. Optionally view a past game"),
+            ("advice", "Get some questionably useful chess advice"),
+        ]
+        
+        help_text = ["**Chess Bot Commands:**"]
+        for cmd, desc in commands:
+            help_text.append(f"• `/{cmd}` - {desc}")
+            
+        await interaction.response.send_message("\n".join(help_text))
