@@ -128,9 +128,11 @@ class ChessCog(commands.Cog):
     @app_commands.command(name="move", description="Make a move using algebraic notation")
     @app_commands.describe(move_str="The move in algebraic notation (e.g., e4, Nf3)")
     async def move(self, interaction: discord.Interaction, move_str: str):
+        await interaction.response.defer()
+        
         game = self.bot.get_current_game(interaction.channel_id)
         if not game:
-            await interaction.response.send_message("No active game in this channel!")
+            await interaction.followup.send("No active game in this channel!")
             return
         
         # Check if it's the right player's turn
@@ -138,29 +140,39 @@ class ChessCog(commands.Cog):
         if interaction.user not in current_players:
             if not current_players:
                 color = "White" if game.board.turn == chess.WHITE else "Black"
-                await interaction.response.send_message(f"The {color} team is vacant! Join with `/join {color.lower()}`")
+                await interaction.followup.send(f"The {color} team is vacant! Join with `/join {color.lower()}`")
             else:
-                await interaction.response.send_message(f"It's not your turn! Waiting for {game.get_next_turn_text()}")
+                await interaction.followup.send(f"It's not your turn! Waiting for {game.get_next_turn_text()}")
             return
             
         if game.make_move(move_str):
-            await interaction.response.send_message(f"Move {move_str} played!")
+            await interaction.followup.send(f"Move {move_str} played!")
             await self.send_board(interaction)
             
             # Check for checkmate or stalemate
             if game.board.is_checkmate():
                 winner = "Black" if game.board.turn == chess.WHITE else "White"
-                await interaction.response.send_message(f"Checkmate! {winner} wins! 🎉")
+                await interaction.followup.send(f"Checkmate! {winner} wins! 🎉")
                 await self.stop(interaction)
             elif game.board.is_stalemate():
-                await interaction.response.send_message("Stalemate! The game is a draw! 🤝")
+                await interaction.followup.send("Stalemate! The game is a draw! 🤝")
                 await self.stop(interaction)
             else:
-                await interaction.response.send_message(game.get_next_turn_text())
+                await interaction.followup.send(game.get_next_turn_text())
             
             self.bot.save_games()
         else:
-            await interaction.response.send_message(f"{move_str} is not a valid move!")
+            # Get all legal moves when an invalid move is attempted
+            legal_moves = []
+            for move in game.board.legal_moves:
+                san = game.board.san(move)
+                legal_moves.append(san)
+            
+            legal_moves.sort()
+            response = f"`{move_str}` is not a valid move!\n\nLegal moves ({len(legal_moves)}):\n"
+            response += ", ".join(legal_moves)
+            
+            await interaction.followup.send(response)
 
     @app_commands.command(name="undo", description="Undo the last move")
     async def undo(self, interaction: discord.Interaction):
@@ -446,3 +458,25 @@ class ChessCog(commands.Cog):
             await ctx.send(f"Synced {len(synced)} commands!")
         except Exception as e:
             await ctx.send(f"Failed to sync commands: {str(e)}")
+
+    @app_commands.command(name="legal", description="Show all legal moves in the current position")
+    async def legal_moves(self, interaction: discord.Interaction):
+        game = self.bot.get_current_game(interaction.channel_id)
+        if not game:
+            await interaction.response.send_message("No active game in this channel!")
+            return
+        
+        # Get all legal moves in SAN notation
+        legal_moves = []
+        for move in game.board.legal_moves:
+            san = game.board.san(move)
+            legal_moves.append(san)
+        
+        # Sort moves for readability
+        legal_moves.sort()
+        
+        # Format the response
+        response = f"Legal moves ({len(legal_moves)}):\n"
+        response += ", ".join(legal_moves)
+        
+        await interaction.response.send_message(response)
