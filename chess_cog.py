@@ -360,3 +360,89 @@ class ChessCog(commands.Cog):
             help_text.append(f"• `/{cmd}` - {desc}")
             
         await interaction.response.send_message("\n".join(help_text))
+
+    @app_commands.command(name="randomise_teams", description="Randomly assign teams from users with chess-player role")
+    @app_commands.describe(
+        players_per_team="Optional: Limit number of players per team (default: all available)",
+        include_spectators="Include offline/invisible players (default: True)"
+    )
+    async def randomise_teams(
+        self, 
+        interaction: discord.Interaction, 
+        players_per_team: int = None,
+        include_spectators: bool = True
+    ):
+        game = self.bot.get_current_game(interaction.channel_id)
+        if not game:
+            await interaction.response.send_message("No active game in this channel!")
+            return
+
+        # Get the chess-player role
+        chess_role = discord.utils.get(interaction.guild.roles, name="chess-player")
+        if not chess_role:
+            await interaction.response.send_message("No 'chess-player' role found in this server!")
+            return
+
+        # Get all members with the chess-player role
+        eligible_players = [
+            member for member in chess_role.members
+            if include_spectators or member.status != discord.Status.offline
+        ]
+
+        if not eligible_players:
+            await interaction.response.send_message("No eligible players found with the 'chess-player' role!")
+            return
+
+        # Randomly shuffle players
+        import random
+        random.shuffle(eligible_players)
+
+        # If players_per_team is specified, limit the teams
+        if players_per_team:
+            if len(eligible_players) < players_per_team * 2:
+                await interaction.response.send_message(
+                    f"Not enough eligible players! Need {players_per_team * 2} players, but only found {len(eligible_players)}."
+                )
+                return
+            total_players = players_per_team * 2
+        else:
+            # Use all players, split evenly
+            total_players = len(eligible_players)
+            if total_players % 2 != 0:
+                total_players -= 1  # Ensure even teams, last player becomes alternate
+
+        # Split into teams
+        half_players = total_players // 2
+        game.white_players = eligible_players[:half_players]
+        game.black_players = eligible_players[half_players:total_players]
+
+        # Format team lists
+        white_team = ", ".join(p.display_name for p in game.white_players)
+        black_team = ", ".join(p.display_name for p in game.black_players)
+        
+        # If there are leftover players, mention them as alternates
+        alternates = eligible_players[total_players:]
+        alternate_msg = ""
+        if alternates:
+            alternate_names = ", ".join(p.display_name for p in alternates)
+            alternate_msg = f"\n\nAlternates: {alternate_names}"
+
+        response = (
+            f"Teams have been randomly assigned!\n\n"
+            f"⚪ White Team ({len(game.white_players)} players): {white_team}\n"
+            f"⚫ Black Team ({len(game.black_players)} players): {black_team}"
+            f"{alternate_msg}"
+        )
+
+        await interaction.response.send_message(response)
+        self.bot.save_games()
+
+    @commands.command(name="sync")
+    @commands.is_owner()  # Only bot owner can use this command
+    async def sync(self, ctx):
+        """Sync slash commands to the current guild"""
+        try:
+            synced = await ctx.bot.tree.sync()
+            await ctx.send(f"Synced {len(synced)} commands!")
+        except Exception as e:
+            await ctx.send(f"Failed to sync commands: {str(e)}")

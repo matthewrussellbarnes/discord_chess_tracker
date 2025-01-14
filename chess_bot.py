@@ -11,6 +11,8 @@ class ChessBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
         intents.message_content = True
+        intents.members = True
+        intents.presences = True
         super().__init__(command_prefix='/', intents=intents)
         self.channel_data = {}  # Will store both current and past games
         self.save_file = 'chess_games.json'
