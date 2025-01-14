@@ -17,6 +17,8 @@ class ChessGame:
         self.completed = False
         self.timestamp = None
         self.is_960 = variant_960  # Store if this is a Chess960 game
+        self.white_player_ids = []  # Add this
+        self.black_player_ids = []  # Add this
 
     def to_dict(self):
         """Convert game state to dictionary for saving"""
@@ -26,7 +28,8 @@ class ChessGame:
             'black_players': [player.id for player in self.black_players],
             'move_history': self.move_history,
             'completed': self.completed,
-            'timestamp': self.timestamp
+            'timestamp': self.timestamp,
+            'is_960': self.is_960  # Also save this for completeness
         }
     
     @classmethod

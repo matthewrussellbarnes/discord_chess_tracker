@@ -33,14 +33,23 @@ class ChessBot(commands.Bot):
                         
                         # Load past games
                         for game_data in channel_info.get('past_games', []):
-                            self.channel_data[channel_id]['past_games'].append(
-                                ChessGame.from_dict(game_data, self)
-                            )
+                            game = ChessGame.from_dict(game_data, self)
+                            # Store player IDs if users can't be found yet
+                            if not game.white_players:
+                                game.white_player_ids = game_data.get('white_players', [])
+                            if not game.black_players:
+                                game.black_player_ids = game_data.get('black_players', [])
+                            self.channel_data[channel_id]['past_games'].append(game)
                             
                         # Load current game if it exists
-                        if 'current_game' in channel_info:
-                            self.channel_data[channel_id]['current_game'] = \
-                                ChessGame.from_dict(channel_info['current_game'], self)
+                        if 'current_game' in channel_info and channel_info['current_game']:
+                            game = ChessGame.from_dict(channel_info['current_game'], self)
+                            # Store player IDs if users can't be found yet
+                            if not game.white_players:
+                                game.white_player_ids = channel_info['current_game'].get('white_players', [])
+                            if not game.black_players:
+                                game.black_player_ids = channel_info['current_game'].get('black_players', [])
+                            self.channel_data[channel_id]['current_game'] = game
             except Exception as e:
                 print(f"Error loading games: {e}")
     
@@ -63,7 +72,16 @@ class ChessBot(commands.Bot):
         return self.channel_data.get(channel_id, {}).get('current_game')
     
     async def setup_hook(self):
+        """Called when the bot is done preparing data"""
         await self.add_cog(ChessCog(self))
+        # Restore players after bot is ready
+        for channel_data in self.channel_data.values():
+            if channel_data['current_game']:
+                game = channel_data['current_game']
+                if hasattr(game, 'white_player_ids'):
+                    game.white_players = [await self.fetch_user(pid) for pid in game.white_player_ids]
+                if hasattr(game, 'black_player_ids'):
+                    game.black_players = [await self.fetch_user(pid) for pid in game.black_player_ids]
 
 
 if __name__ == "__main__":
