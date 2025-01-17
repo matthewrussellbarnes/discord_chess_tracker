@@ -9,6 +9,8 @@ class ChessGame:
         if variant_960:
             # Generate random Chess960 starting position
             self.board = chess.Board.from_chess960_pos(random.randint(0, 959))
+            # Explicitly set castling rights for both sides
+            self.board.castling_rights = chess.BB_A1 | chess.BB_H1 | chess.BB_A8 | chess.BB_H8
         else:
             self.board = chess.Board()
         self.white_players = []  # List of players on white team
@@ -49,7 +51,8 @@ class ChessGame:
         
     def make_move(self, move_str):
         try:
-            # Try parsing as algebraic notation first
+            if 'o' in move_str.lower():
+                move_str = move_str.upper().replace('0', 'O')
             move = self.board.parse_san(move_str)
             self.board.push(move)
             self.move_history.append(move_str)
@@ -108,3 +111,37 @@ class ChessGame:
             player_names = ", ".join(p.name for p in next_players)
             return f"It's {next_turn}'s turn ({player_names})"
         return f"It's {next_turn}'s turn (no players assigned)"
+
+    def reset_castling_rights(self, color, wing):
+        """Reset castling rights for a specific color and wing"""
+        if wing == "kingside":
+            if color == chess.WHITE:
+                self.board.castling_rights |= chess.BB_H1
+            else:
+                self.board.castling_rights |= chess.BB_H8
+        elif wing == "queenside":
+            if color == chess.WHITE:
+                self.board.castling_rights |= chess.BB_A1
+            else:
+                self.board.castling_rights |= chess.BB_A8
+
+    def get_castling_rights(self):
+        """Get a human-readable description of current castling rights"""
+        rights = []
+        
+        # Check White's castling rights
+        if self.board.has_kingside_castling_rights(chess.WHITE):
+            rights.append("White O-O")
+        if self.board.has_queenside_castling_rights(chess.WHITE):
+            rights.append("White O-O-O")
+        
+        # Check Black's castling rights
+        if self.board.has_kingside_castling_rights(chess.BLACK):
+            rights.append("Black O-O")
+        if self.board.has_queenside_castling_rights(chess.BLACK):
+            rights.append("Black O-O-O")
+        
+        if not rights:
+            return "No castling rights remaining"
+        
+        return "Available castling: " + ", ".join(rights)

@@ -480,3 +480,65 @@ class ChessCog(commands.Cog):
         response += ", ".join(legal_moves)
         
         await interaction.response.send_message(response)
+
+    @app_commands.command(name="castling", description="Show or modify castling rights")
+    @app_commands.describe(
+        action="View or reset specific castling rights",
+        side="Which side to modify (required for reset)",
+        wing="Which wing to modify (required for reset)"
+    )
+    @app_commands.choices(
+        action=[
+            app_commands.Choice(name="view", value="view"),
+            app_commands.Choice(name="reset", value="reset")
+        ],
+        side=[
+            app_commands.Choice(name="white", value="white"),
+            app_commands.Choice(name="black", value="black")
+        ],
+        wing=[
+            app_commands.Choice(name="kingside", value="kingside"),
+            app_commands.Choice(name="queenside", value="queenside"),
+            app_commands.Choice(name="both", value="both")
+        ]
+    )
+    async def castling_rights(
+        self, 
+        interaction: discord.Interaction, 
+        action: str = "view",
+        side: str = None,
+        wing: str = None
+    ):
+        game = self.bot.get_current_game(interaction.channel_id)
+        if not game:
+            await interaction.response.send_message("No active game in this channel!")
+            return
+
+        if action == "view":
+            rights = game.get_castling_rights()
+            variant = "Chess960" if game.is_960 else "Standard"
+            response = f"{variant} game\n{rights}"
+            await interaction.response.send_message(response)
+            return
+
+        # Handle reset action
+        if not side or not wing:
+            await interaction.response.send_message("Both 'side' and 'wing' are required when resetting castling rights!")
+            return
+
+        # Convert parameters to chess.py constants
+        color = chess.WHITE if side == "white" else chess.BLACK
+        
+        # Reset the specified castling rights
+        if wing == "both":
+            game.reset_castling_rights(color, "kingside")
+            game.reset_castling_rights(color, "queenside")
+            message = f"Reset both castling rights for {side}"
+        else:
+            game.reset_castling_rights(color, wing)
+            message = f"Reset {wing} castling rights for {side}"
+
+        # Show updated rights
+        rights = game.get_castling_rights()
+        response = f"{message}\nUpdated castling rights:\n{rights}"
+        await interaction.response.send_message(response)
