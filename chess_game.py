@@ -37,13 +37,15 @@ class ChessGame:
     @classmethod
     def from_dict(cls, data, bot):
         """Create a game instance from saved dictionary"""
-        game = cls()
+        game = cls(variant_960=data.get('is_960', False))
+        
         game.board.set_fen(data['fen'])
+        
         game.move_history = data['move_history']
         game.completed = data.get('completed', False)
         game.timestamp = data.get('timestamp')
+        game.is_960 = data.get('is_960', False)
         
-        # Restore player objects from IDs
         game.white_players = [bot.get_user(pid) for pid in data['white_players'] if bot.get_user(pid)]
         game.black_players = [bot.get_user(pid) for pid in data['black_players'] if bot.get_user(pid)]
         
@@ -82,8 +84,6 @@ class ChessGame:
         svg_data = chess.svg.board(self.board)
         png_data = cairosvg.svg2png(bytestring=svg_data.encode('utf-8'))
         return io.BytesIO(png_data)
-        
-    
         
     def get_current_status(self):
         """Get the current game status as a formatted string"""
