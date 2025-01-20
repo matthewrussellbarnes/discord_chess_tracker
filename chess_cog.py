@@ -188,7 +188,7 @@ class ChessCog(commands.Cog):
         else:
             await interaction.response.send_message("No moves to undo!")
 
-    @app_commands.command(name="history", description="Show move history")
+    @app_commands.command(name="history", description="Show move history in PGN and FEN format")
     @app_commands.describe(game_number="Optional: View a specific past game")
     async def history(self, interaction: discord.Interaction, game_number: int = None):
         channel_id = interaction.channel_id
@@ -209,7 +209,11 @@ class ChessCog(commands.Cog):
                 game = past_games[game_number - 1]  # Convert to 0-based index
                 response = [f"Game #{game_number} - {game.timestamp}"]
                 
-                # Format moves with numbers
+                # Add starting FEN format
+                response.append("\n**Starting Position (FEN):**")
+                response.append(f"`{game.starting_fen}`")
+                
+                # Format moves with numbers for PGN
                 formatted_moves = []
                 for i, move in enumerate(game.move_history):
                     if i % 2 == 0:
@@ -217,10 +221,12 @@ class ChessCog(commands.Cog):
                     else:
                         formatted_moves.append(move)
                 
+                # Add PGN format
+                response.append("\n**PGN:**")
                 if formatted_moves:
-                    response.append(" ".join(formatted_moves))
+                    response.append("```" + " ".join(formatted_moves) + "```")
                 else:
-                    response.append("No moves were made in this game.")
+                    response.append("```No moves were made in this game.```")
                     
                 await interaction.response.send_message("\n".join(response))
             except IndexError:
@@ -233,19 +239,26 @@ class ChessCog(commands.Cog):
             await interaction.response.send_message("No active game. Use a number to see past games!")
             return
             
-        # Format moves with numbers for current game
+        response = ["**Current game:**"]
+        
+        # Add starting FEN format
+        response.append("\n**Starting Position (FEN):**")
+        response.append(f"`{current_game.starting_fen}`")
+        
+        # Format moves with numbers for PGN
         formatted_moves = []
         for i, move in enumerate(current_game.move_history):
             if i % 2 == 0:
                 formatted_moves.append(f"{i//2 + 1}. {move}")
             else:
                 formatted_moves.append(move)
-                
-        response = ["Current game:"]
+            
+        # Add PGN format
+        response.append("\n**PGN:**")
         if formatted_moves:
-            response.append(" ".join(formatted_moves))
+            response.append("```" + " ".join(formatted_moves) + "```")
         else:
-            response.append("No moves played yet.")
+            response.append("```No moves played yet.```")
             
         # Add info about viewing past games if they exist
         if channel_data.get('past_games'):

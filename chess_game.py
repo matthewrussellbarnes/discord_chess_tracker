@@ -19,6 +19,7 @@ class ChessGame:
         self.completed = False
         self.timestamp = None
         self.is_960 = variant_960  # Store if this is a Chess960 game
+        self.starting_fen = self.board.fen()  # Store the starting position
         self.white_player_ids = []  # Add this
         self.black_player_ids = []  # Add this
 
@@ -26,12 +27,13 @@ class ChessGame:
         """Convert game state to dictionary for saving"""
         return {
             'fen': self.board.fen(),
+            'starting_fen': self.starting_fen,  # Save the starting position
             'white_players': [player.id for player in self.white_players],
             'black_players': [player.id for player in self.black_players],
             'move_history': self.move_history,
             'completed': self.completed,
             'timestamp': self.timestamp,
-            'is_960': self.is_960  # Also save this for completeness
+            'is_960': self.is_960
         }
     
     @classmethod
@@ -40,7 +42,7 @@ class ChessGame:
         game = cls(variant_960=data.get('is_960', False))
         
         game.board.set_fen(data['fen'])
-        
+        game.starting_fen = data.get('starting_fen', chess.Board().fen())  # Load starting position with fallback
         game.move_history = data['move_history']
         game.completed = data.get('completed', False)
         game.timestamp = data.get('timestamp')
