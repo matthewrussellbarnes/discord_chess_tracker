@@ -9,8 +9,11 @@ class ChessGame:
         if variant_960:
             # Generate random Chess960 starting position
             self.board = chess.Board.from_chess960_pos(random.randint(0, 959))
-            # Explicitly set castling rights for both sides
-            self.board.castling_rights = chess.BB_A1 | chess.BB_H1 | chess.BB_A8 | chess.BB_H8
+            # Set initial castling rights for both sides
+            self.reset_castling_rights(chess.WHITE, "kingside")
+            self.reset_castling_rights(chess.WHITE, "queenside")
+            self.reset_castling_rights(chess.BLACK, "kingside")
+            self.reset_castling_rights(chess.BLACK, "queenside")
         else:
             self.board = chess.Board()
         self.white_players = []  # List of players on white team
@@ -116,16 +119,15 @@ class ChessGame:
 
     def reset_castling_rights(self, color, wing):
         """Reset castling rights for a specific color and wing"""
+        rank = chess.BB_RANK_1 if color == chess.WHITE else chess.BB_RANK_8
+        rooks = self.board.rooks & rank & self.board.occupied_co[color]
+        
         if wing == "kingside":
-            if color == chess.WHITE:
-                self.board.castling_rights |= chess.BB_H1
-            else:
-                self.board.castling_rights |= chess.BB_H8
+            rook_square = chess.BB_SQUARES[chess.msb(rooks)]  # rightmost rook
+            self.board.castling_rights |= rook_square
         elif wing == "queenside":
-            if color == chess.WHITE:
-                self.board.castling_rights |= chess.BB_A1
-            else:
-                self.board.castling_rights |= chess.BB_A8
+            rook_square = chess.BB_SQUARES[chess.lsb(rooks)]  # leftmost rook
+            self.board.castling_rights |= rook_square
 
     def get_castling_rights(self):
         """Get a human-readable description of current castling rights"""

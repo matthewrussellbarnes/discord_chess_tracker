@@ -209,9 +209,8 @@ class ChessCog(commands.Cog):
                 game = past_games[game_number - 1]  # Convert to 0-based index
                 response = [f"Game #{game_number} - {game.timestamp}"]
                 
-                # Add starting FEN format
-                response.append("\n**Starting Position (FEN):**")
-                response.append(f"`{game.starting_fen}`")
+                response.append("Analyse this position on Lichess:")
+                response.append(f"https://lichess.org/analysis/{game.starting_fen.replace(' ', '_')}color=white")
                 
                 # Format moves with numbers for PGN
                 formatted_moves = []
@@ -222,7 +221,7 @@ class ChessCog(commands.Cog):
                         formatted_moves.append(move)
                 
                 # Add PGN format
-                response.append("\n**PGN:**")
+                response.append("\n**Use this PGN:**")
                 if formatted_moves:
                     response.append("```" + " ".join(formatted_moves) + "```")
                 else:
@@ -242,8 +241,8 @@ class ChessCog(commands.Cog):
         response = ["**Current game:**"]
         
         # Add starting FEN format
-        response.append("\n**Starting Position (FEN):**")
-        response.append(f"`{current_game.starting_fen}`")
+        response.append("Analyse this position on Lichess:")
+        response.append(f"https://lichess.org/analysis/{current_game.starting_fen.replace(' ', '_')}color=white")
         
         # Format moves with numbers for PGN
         formatted_moves = []
@@ -254,7 +253,7 @@ class ChessCog(commands.Cog):
                 formatted_moves.append(move)
             
         # Add PGN format
-        response.append("\n**PGN:**")
+        response.append("\n**Use this PGN:**")
         if formatted_moves:
             response.append("```" + " ".join(formatted_moves) + "```")
         else:
@@ -496,9 +495,9 @@ class ChessCog(commands.Cog):
 
     @app_commands.command(name="castling", description="Show or modify castling rights")
     @app_commands.describe(
-        action="View or reset specific castling rights",
-        side="Which side to modify (required for reset)",
-        wing="Which wing to modify (required for reset)"
+        action="View or reset castling rights",
+        side="Which side to modify (optional)",
+        wing="Which wing to modify (optional)"
     )
     @app_commands.choices(
         action=[
@@ -535,21 +534,34 @@ class ChessCog(commands.Cog):
             return
 
         # Handle reset action
-        if not side or not wing:
-            await interaction.response.send_message("Both 'side' and 'wing' are required when resetting castling rights!")
-            return
-
-        # Convert parameters to chess.py constants
-        color = chess.WHITE if side == "white" else chess.BLACK
-        
-        # Reset the specified castling rights
-        if wing == "both":
+        if not side and not wing:
+            # Reset all castling rights
+            game.reset_castling_rights(chess.WHITE, "kingside")
+            game.reset_castling_rights(chess.WHITE, "queenside")
+            game.reset_castling_rights(chess.BLACK, "kingside")
+            game.reset_castling_rights(chess.BLACK, "queenside")
+            message = "Reset all castling rights"
+        elif side and not wing:
+            # Reset both wings for specified side
+            color = chess.WHITE if side == "white" else chess.BLACK
             game.reset_castling_rights(color, "kingside")
             game.reset_castling_rights(color, "queenside")
-            message = f"Reset both castling rights for {side}"
-        else:
-            game.reset_castling_rights(color, wing)
-            message = f"Reset {wing} castling rights for {side}"
+            message = f"Reset all castling rights for {side}"
+        elif side and wing:
+            # Reset specific wing for specific side
+            color = chess.WHITE if side == "white" else chess.BLACK
+            if wing == "both":
+                game.reset_castling_rights(color, "kingside")
+                game.reset_castling_rights(color, "queenside")
+                message = f"Reset both castling rights for {side}"
+            else:
+                game.reset_castling_rights(color, wing)
+                message = f"Reset {wing} castling rights for {side}"
+        else:  # wing but no side
+            # Reset specified wing for both sides
+            game.reset_castling_rights(chess.WHITE, wing)
+            game.reset_castling_rights(chess.BLACK, wing)
+            message = f"Reset {wing} castling rights for both sides"
 
         # Show updated rights
         rights = game.get_castling_rights()
