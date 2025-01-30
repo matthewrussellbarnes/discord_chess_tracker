@@ -134,19 +134,9 @@ class ChessCog(commands.Cog):
         if not game:
             await interaction.followup.send("No active game in this channel!")
             return
-        
-        # Check if it's the right player's turn
-        current_players = game.white_players if game.board.turn == chess.WHITE else game.black_players
-        if interaction.user not in current_players:
-            if not current_players:
-                color = "White" if game.board.turn == chess.WHITE else "Black"
-                await interaction.followup.send(f"The {color} team is vacant! Join with `/join {color.lower()}`")
-            else:
-                await interaction.followup.send(f"It's not your turn! Waiting for {game.get_next_turn_text()}")
-            return
             
         if game.make_move(move_str):
-            await interaction.followup.send(f"Move {move_str} played!")
+            await interaction.followup.send(f"Move {move_str} played by {interaction.user.name}!")
             await self.send_board(interaction)
             
             # Check for checkmate or stalemate
