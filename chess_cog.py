@@ -329,6 +329,114 @@ class ChessCog(commands.Cog):
         await interaction.response.send_message("Teams have been reset! Both sides are now vacant.")
         self.bot.save_games()
 
+    @app_commands.command(name="assign_player", description="[Admin] Assign a player to a team")
+    @app_commands.describe(
+        user="The user to assign to a team",
+        color="Choose 'white' or 'black'",
+        force="Force assignment even if player is already on the other team"
+    )
+    @app_commands.choices(color=[
+        app_commands.Choice(name="White", value="white"),
+        app_commands.Choice(name="Black", value="black")
+    ])
+    @app_commands.default_permissions(manage_guild=True)
+    async def assign_player(self, interaction: discord.Interaction, user: discord.Member, color: str, force: bool = False):
+        # Check if user has admin permissions
+        if not interaction.user.guild_permissions.manage_guild:
+            await interaction.response.send_message("You need 'Manage Server' permission to use this command!")
+            return
+            
+        game = self.bot.get_current_game(interaction.channel_id)
+        if not game:
+            await interaction.response.send_message("No active game in this channel!")
+            return
+            
+        color = color.lower()
+        if color not in ['white', 'black']:
+            await interaction.response.send_message("Please specify 'white' or 'black'!")
+            return
+        
+        # Check if player is already on a team
+        current_team = None
+        if user in game.white_players:
+            current_team = "white"
+        elif user in game.black_players:
+            current_team = "black"
+        
+        # If player is already on the requested team
+        if current_team == color:
+            await interaction.response.send_message(f"{user.display_name} is already on team {color.title()}!")
+            return
+        
+        # If player is on the other team and force is not used
+        if current_team and not force:
+            await interaction.response.send_message(
+                f"{user.display_name} is already on team {current_team.title()}! "
+                f"Use `force: True` to move them to team {color.title()}."
+            )
+            return
+        
+        # Remove player from current team if they're on one
+        if current_team == "white":
+            game.white_players.remove(user)
+        elif current_team == "black":
+            game.black_players.remove(user)
+        
+        # Add player to the requested team
+        if color == 'white':
+            game.white_players.append(user)
+            team_name = "White"
+        else:
+            game.black_players.append(user)
+            team_name = "Black"
+        
+        # Generate response message
+        if current_team and force:
+            await interaction.response.send_message(
+                f"{user.display_name} has been moved from team {current_team.title()} to team {team_name}!"
+            )
+        else:
+            await interaction.response.send_message(
+                f"{user.display_name} has been assigned to team {team_name}!"
+            )
+        
+        self.bot.save_games()
+
+    @app_commands.command(name="remove_player", description="[Admin] Remove a player from their team")
+    @app_commands.describe(
+        user="The user to remove from their team"
+    )
+    @app_commands.default_permissions(manage_guild=True)
+    async def remove_player(self, interaction: discord.Interaction, user: discord.Member):
+        # Check if user has admin permissions
+        if not interaction.user.guild_permissions.manage_guild:
+            await interaction.response.send_message("You need 'Manage Server' permission to use this command!")
+            return
+            
+        game = self.bot.get_current_game(interaction.channel_id)
+        if not game:
+            await interaction.response.send_message("No active game in this channel!")
+            return
+        
+        # Check if player is on a team
+        removed_from = None
+        if user in game.white_players:
+            game.white_players.remove(user)
+            removed_from = "White"
+        elif user in game.black_players:
+            game.black_players.remove(user)
+            removed_from = "Black"
+        
+        if removed_from:
+            await interaction.response.send_message(
+                f"{user.display_name} has been removed from team {removed_from}!"
+            )
+            self.bot.save_games()
+        else:
+            await interaction.response.send_message(
+                f"{user.display_name} is not on any team!"
+            )
+
     @app_commands.command(name="save", description="Manually save all active games")
     async def save(self, interaction: discord.Interaction):
         self.bot.save_games()
@@ -369,21 +477,32 @@ class ChessCog(commands.Cog):
             ("advice", "Get some questionably useful chess advice"),
         ]
         
+        admin_commands = [
+            ("assign_player <user> <white/black> [force]", "Assign a player to a team (Admin only)"),
+            ("remove_player <user>", "Remove a player from their team (Admin only)"),
+            ("reset_teams", "Reset both teams to vacant"),
+            ("randomise_teams", "Randomly assign unassigned players to teams (keeps existing assignments)"),
+        ]
+        
         help_text = ["**Chess Bot Commands:**"]
         for cmd, desc in commands:
             help_text.append(f"• `/{cmd}` - {desc}")
+        
+        # Add admin commands if user has permissions
+        if interaction.user.guild_permissions.manage_guild:
+            help_text.append("\n**Admin Commands:**")
+            for cmd, desc in admin_commands:
+                help_text.append(f"• `/{cmd}` - {desc}")
             
         await interaction.response.send_message("\n".join(help_text))
 
-    @app_commands.command(name="randomise_teams", description="Randomly assign teams from users with chess-player role")
+    @app_commands.command(name="randomise_teams", description="Randomly assign all players with chess-player role to teams")
     @app_commands.describe(
-        players_per_team="Optional: Limit number of players per team (default: all available)",
         include_spectators="Include offline/invisible players (default: True)"
     )
     async def randomise_teams(
         self, 
         interaction: discord.Interaction, 
-        players_per_team: int = None,
         include_spectators: bool = True
     ):
         game = self.bot.get_current_game(interaction.channel_id)
@@ -407,46 +526,54 @@ class ChessCog(commands.Cog):
             await interaction.response.send_message("No eligible players found with the 'chess-player' role!")
             return
 
-        # Randomly shuffle players
+        # Check if there are existing players on teams
+        existing_players = set(game.white_players + game.black_players)
+        unassigned_players = [player for player in eligible_players if player not in existing_players]
+
         import random
-        random.shuffle(eligible_players)
-
-        # If players_per_team is specified, limit the teams
-        if players_per_team:
-            if len(eligible_players) < players_per_team * 2:
-                await interaction.response.send_message(
-                    f"Not enough eligible players! Need {players_per_team * 2} players, but only found {len(eligible_players)}."
-                )
-                return
-            total_players = players_per_team * 2
+        
+        if not existing_players:
+            # No existing players, clear teams and assign everyone randomly
+            game.white_players = []
+            game.black_players = []
+            players_to_assign = eligible_players
         else:
-            # Use all players, split evenly
-            total_players = len(eligible_players)
-            if total_players % 2 != 0:
-                total_players -= 1  # Ensure even teams, last player becomes alternate
+            # Keep existing teams, only assign unassigned players
+            players_to_assign = unassigned_players
 
-        # Split into teams
-        half_players = total_players // 2
-        game.white_players = eligible_players[:half_players]
-        game.black_players = eligible_players[half_players:total_players]
+        # Randomly assign each unassigned player to either white or black team
+        for player in players_to_assign:
+            if random.choice([True, False]):  # 50/50 chance
+                game.white_players.append(player)
+            else:
+                game.black_players.append(player)
 
         # Format team lists
-        white_team = ", ".join(p.display_name for p in game.white_players)
-        black_team = ", ".join(p.display_name for p in game.black_players)
-        
-        # If there are leftover players, mention them as alternates
-        alternates = eligible_players[total_players:]
-        alternate_msg = ""
-        if alternates:
-            alternate_names = ", ".join(p.display_name for p in alternates)
-            alternate_msg = f"\n\nAlternates: {alternate_names}"
+        white_team = ", ".join(p.display_name for p in game.white_players) if game.white_players else "No players"
+        black_team = ", ".join(p.display_name for p in game.black_players) if game.black_players else "No players"
 
-        response = (
-            f"Teams have been randomly assigned!\n\n"
-            f"⚪ White Team ({len(game.white_players)} players): {white_team}\n"
-            f"⚫ Black Team ({len(game.black_players)} players): {black_team}"
-            f"{alternate_msg}"
-        )
+        # Create appropriate response message
+        if not existing_players:
+            response = (
+                f"Teams have been randomly assigned! (Unequal teams allowed)\n\n"
+                f"⚪ White Team ({len(game.white_players)} players): {white_team}\n"
+                f"⚫ Black Team ({len(game.black_players)} players): {black_team}"
+            )
+        else:
+            if unassigned_players:
+                newly_assigned = ", ".join(p.display_name for p in unassigned_players)
+                response = (
+                    f"Added {len(unassigned_players)} unassigned players to teams randomly!\n"
+                    f"Newly assigned: {newly_assigned}\n\n"
+                    f"⚪ White Team ({len(game.white_players)} players): {white_team}\n"
+                    f"⚫ Black Team ({len(game.black_players)} players): {black_team}"
+                )
+            else:
+                response = (
+                    f"All eligible players are already assigned to teams!\n\n"
+                    f"⚪ White Team ({len(game.white_players)} players): {white_team}\n"
+                    f"⚫ Black Team ({len(game.black_players)} players): {black_team}"
+                )
 
         await interaction.response.send_message(response)
         self.bot.save_games()
