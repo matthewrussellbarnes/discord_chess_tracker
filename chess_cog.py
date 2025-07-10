@@ -481,7 +481,7 @@ class ChessCog(commands.Cog):
             ("assign_player <user> <white/black> [force]", "Assign a player to a team (Admin only)"),
             ("remove_player <user>", "Remove a player from their team (Admin only)"),
             ("reset_teams", "Reset both teams to vacant"),
-            ("randomise_teams", "Randomly assign unassigned players to teams (keeps existing assignments)"),
+            ("randomise_teams", "Randomly assign unassigned players to teams (balanced, keeps existing assignments)"),
         ]
         
         help_text = ["**Chess Bot Commands:**"]
@@ -533,7 +533,7 @@ class ChessCog(commands.Cog):
         import random
         
         if not existing_players:
-            # No existing players, clear teams and assign everyone randomly
+            # No existing players, clear teams and assign everyone randomly but equally
             game.white_players = []
             game.black_players = []
             players_to_assign = eligible_players
@@ -541,12 +541,26 @@ class ChessCog(commands.Cog):
             # Keep existing teams, only assign unassigned players
             players_to_assign = unassigned_players
 
-        # Randomly assign each unassigned player to either white or black team
-        for player in players_to_assign:
-            if random.choice([True, False]):  # 50/50 chance
-                game.white_players.append(player)
-            else:
-                game.black_players.append(player)
+        # Assign players to keep teams as equal as possible
+        if players_to_assign:
+            # Shuffle for randomness
+            random.shuffle(players_to_assign)
+            
+            for player in players_to_assign:
+                # Always assign to the smaller team, or randomly if teams are equal
+                white_count = len(game.white_players)
+                black_count = len(game.black_players)
+                
+                if white_count < black_count:
+                    game.white_players.append(player)
+                elif black_count < white_count:
+                    game.black_players.append(player)
+                else:
+                    # Teams are equal, assign randomly
+                    if random.choice([True, False]):
+                        game.white_players.append(player)
+                    else:
+                        game.black_players.append(player)
 
         # Format team lists
         white_team = ", ".join(p.display_name for p in game.white_players) if game.white_players else "No players"
@@ -555,7 +569,7 @@ class ChessCog(commands.Cog):
         # Create appropriate response message
         if not existing_players:
             response = (
-                f"Teams have been randomly assigned! (Unequal teams allowed)\n\n"
+                f"Teams have been randomly assigned with balanced distribution!\n\n"
                 f"⚪ White Team ({len(game.white_players)} players): {white_team}\n"
                 f"⚫ Black Team ({len(game.black_players)} players): {black_team}"
             )
@@ -563,7 +577,7 @@ class ChessCog(commands.Cog):
             if unassigned_players:
                 newly_assigned = ", ".join(p.display_name for p in unassigned_players)
                 response = (
-                    f"Added {len(unassigned_players)} unassigned players to teams randomly!\n"
+                    f"Added {len(unassigned_players)} unassigned players to teams with balanced distribution!\n"
                     f"Newly assigned: {newly_assigned}\n\n"
                     f"⚪ White Team ({len(game.white_players)} players): {white_team}\n"
                     f"⚫ Black Team ({len(game.black_players)} players): {black_team}"
